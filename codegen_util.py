@@ -205,7 +205,7 @@ template <typename SW_Func_T>
     items = rank_t * ["3"]
     threes = insert_separator(items, ",")
 
-    res += f"inline {tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const SW_Func_T& sw_func, const {tensor_type(rank_sum)} & Q)"
+    res += f"inline {tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const SW_Func_T& sw_func)"
     res += "\n{\n"
 
     res += "    const double R1 = norm(r);\n"
@@ -222,6 +222,39 @@ template <typename SW_Func_T>
 
     for o in range(min_order, max_order + 2, 2):
         res += f"    const double SW{o} = sw_func(R1, {o});\n"
+
+    return res
+
+
+def wrapped_header(rank_t, rank_result):
+    rank_sum = rank_t - rank_result
+
+    res = f"""/**
+* @brief Contract the rank {rank_t} Coulomb tensor with a rank {rank_sum} tensor Q.
+*
+* @param r position difference vector
+* @param te decay length of the stone damping function
+* @return Tensor<double> (a rank {rank_result} tensor)
+*/
+"""
+
+    items = rank_t * ["3"]
+    threes = insert_separator(items, ",")
+
+    res += f"{tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const double te);"
+    return res
+
+
+def wrapped_implementation(rank_t, rank_result):
+    rank_sum = rank_t - rank_result
+
+    items = rank_t * ["3"]
+    threes = insert_separator(items, ",")
+
+    res = f"{tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const double te)\n"
+    res += "{"
+    res += f"    return Generic::contract_Coulomb_{rank_t}_{rank_result}(r, Q, [&](double r, int m)" + "{ return stonedampingNF(r, m, te); });\n"
+    res += "}"
 
     return res
 

@@ -128,7 +128,7 @@ def write_out_unique_t_tensor_componentes( terms : list[EinsteinTerm], rank ):
 
     return res
 
-def write_tensor_contraction( rank_result, rank_t, target_symbol = "res", input_symbol = "q" ):
+def write_tensor_contraction( rank_result, rank_t, target_symbol = "res", input_symbol = "Q" ):
     res = ""
 
     rank_sum = rank_t - rank_result
@@ -146,7 +146,7 @@ def write_tensor_contraction( rank_result, rank_t, target_symbol = "res", input_
             summands.append(  f"t_{insert_separator(indices_t, "")} * {input_symbol}({insert_separator(indices_sum, ",")})" )
 
         rhs = insert_separator(summands, "+")
-        res += f"    const double {lhs} = {rhs};\n"
+        res += f"    {lhs} = {rhs};\n"
 
     return res
 
@@ -166,7 +166,7 @@ def write_cpp_function(rank_tensor, rank_result):
 
     res += "\n"
 
-    res += "    return r;\n"
+    res += "    return res;\n"
 
     res += "}\n"
 
@@ -175,6 +175,23 @@ def write_cpp_function(rank_tensor, rank_result):
 if __name__ == "__main__":
     output_path = Path("./output")
     output_path.mkdir(exist_ok=True)
+
+    rank_pairs = [
+        [4, 3],
+        [5, 3],
+        [6, 3],
+        [7, 3],
+        [5, 4],
+        [6, 4],
+        [7, 4],
+        [8, 4],
+        [6, 5],
+        [7, 5],
+        [8, 5],
+        [9, 5],
+    ]
+
+
     with open(output_path / "generic_coulomb_tensor_contraction.hpp", "w" ) as f:
         f.write("""
 #pragma once
@@ -183,9 +200,37 @@ if __name__ == "__main__":
 namespace SCME::Coulomb_Tensors::Generic
 {
     """)
-
-        for rank_tensor in range(2,5):
-            rank_target = 2
+        for rank_tensor, rank_target in rank_pairs:
             f.write(write_cpp_function(rank_tensor, rank_target))
             f.write("\n\n")
         f.write("}")
+
+
+    with open(output_path / "coulomb_tensor_contraction.hpp", "w" ) as f:
+        f.write("""
+#pragma once
+#include "tensor.hpp"
+
+namespace SCME::Coulomb_Tensors
+{
+""")
+        for rank_tensor, rank_target in rank_pairs:
+            f.write(wrapped_header(rank_tensor, rank_target))
+            f.write("\n\n")
+        f.write("}")
+
+
+    with open(output_path / "coulomb_tensor_contraction.cpp", "w" ) as f:
+        f.write("""
+#include "tensor.hpp"
+#include "coulomb_tensor_contraction.hpp"
+#include "generic_coulomb_tensor_contraction.hpp"
+
+namespace SCME::Coulomb_Tensors
+{
+""")
+        for rank_tensor, rank_target in rank_pairs:
+            f.write(wrapped_implementation(rank_tensor, rank_target))
+            f.write("\n\n")
+        f.write("}")
+
