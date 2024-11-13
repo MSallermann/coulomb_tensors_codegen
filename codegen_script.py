@@ -55,7 +55,7 @@ class PermutationExplicit(object):
         if len(items) == 0:
             return f"{self.prefactor}"
 
-        return f"{self.prefactor} * {insert_separator(items, " * ")}"
+        return f"{self.prefactor} * " + insert_separator(items, " * ")
 
     # equality operator based on r_factors
     def __eq__(self, val: Self) -> np.bool:
@@ -71,6 +71,8 @@ def evaluate_component(indices: list[int], terms: list[EinsteinTerm]):
     contributions_terms = []
 
     for t in terms:
+        # print(t)
+
         # The contributions from the current term (sum up later)
         summands_permutations: list[PermutationExplicit] = []
 
@@ -88,6 +90,7 @@ def evaluate_component(indices: list[int], terms: list[EinsteinTerm]):
                 if not isinstance(i, int):
                     if indices[i[0]] != indices[i[1]]:
                         contributes = False
+                        pexp.prefactor = 0.0
                         break
                 else:
                     # increment the r_factor
@@ -97,6 +100,9 @@ def evaluate_component(indices: list[int], terms: list[EinsteinTerm]):
             if contributes:
                 summands_permutations.append(pexp)
 
+        # [print(s) for s in summands_permutations] 
+        # [print(s) for s in sum_repeated_elements(summands_permutations)] 
+
         # sum up all the repeated elements before appending
         contributions_terms.append( sum_repeated_elements(summands_permutations) )
 
@@ -104,6 +110,7 @@ def evaluate_component(indices: list[int], terms: list[EinsteinTerm]):
 
     # Now we build up the components
     for t, cont in zip(terms, contributions_terms):
+
         if len(cont) == 0:
             continue
 
@@ -111,20 +118,39 @@ def evaluate_component(indices: list[int], terms: list[EinsteinTerm]):
         for pexp in cont:
             items.append(str(pexp))
 
-            comp += (
-                f" {sign(t.prefactor)} {abs(t.prefactor):.1f} * SW{t.order} / R{t.order} * ("
-                + insert_separator(items, " + ")
-                + ")"
-            )
+        comp += (
+            f" {sign(t.prefactor)} {abs(t.prefactor):.1f} * SW{t.order} / R{t.order} * ("
+            + insert_separator(items, " + ")
+            + ")"
+        )
 
     return comp
 
-def write_out_unique_t_tensor_componentes( terms : list[EinsteinTerm], rank ):
+def write_out_unique_t_tensor_components( terms : list[EinsteinTerm], rank ):
     res = ""
     for indices in unique_indices(rank):
         lhs = f"t_{insert_separator(indices,'')}" 
         rhs = evaluate_component(indices, terms)
         res += f"    const double {lhs} = {rhs};\n"
+
+    return res
+
+
+def write_out_unique_t_tensor_components_arr( terms : list[EinsteinTerm], rank ):
+    res = ""
+
+    idx_list = unique_indices(rank)
+
+    res += f"    std::array<double, {len(idx_list)}> T" + "{\n       "
+
+    components = []
+    for indices in idx_list:
+        rhs = evaluate_component(indices, terms)
+        components.append(f"{rhs}")
+
+    res += insert_separator(components, ",\n       ")
+
+    res += "\n    };\n"
 
     return res
 
@@ -143,10 +169,35 @@ def write_tensor_contraction( rank_result, rank_t, target_symbol = "res", input_
         for indices_sum in all_indices(rank_sum):
             indices_t = indices_result + indices_sum
             indices_t = idx_to_unique_idx(indices_t)
-            summands.append(  f"t_{insert_separator(indices_t, "")} * {input_symbol}({insert_separator(indices_sum, ",")})" )
+            summands.append(  f"t_{insert_separator(indices_t, "")} * {input_symbol}({insert_separator(indices_sum, ',')})" )
 
         rhs = insert_separator(summands, "+")
         res += f"    {lhs} = {rhs};\n"
+
+    return res
+
+def write_tensor_contraction_loops( rank_result, rank_t, target_symbol = "res", input_symbol = "Q" ):
+    res = ""
+
+    alphabet = [chr(97+i) for i in range(rank_t)]
+
+    rank_sum = rank_t - rank_result
+
+    # add the variable we will write the result to
+    res += f"    {tensor_type(rank_result)} {target_symbol}" +"(0.0);\n\n" 
+
+    # Write the head of the tensor loops
+    for i in range(rank_t):
+        a = alphabet[i]
+        res += f"for(int {a} = 0; {a} < 3; {a}++)\n"
+        res += "{\n"
+
+
+    res += f"const int idx_t = Util::get_position_in_lookup_array<{rank_t}>( {{ {insert_separator(alphabet)} }} );\n"
+    res += f"res( {insert_separator( alphabet[:rank_result] )} ) += T[idx_t] * Q({insert_separator( alphabet[rank_result:] )});\n"
+
+    for i in range(rank_t):
+        res += "}\n"
 
     return res
 
@@ -158,11 +209,14 @@ def write_cpp_function(rank_tensor, rank_result):
     res += "\n"
 
     terms = T_Tensor(rank_tensor)
-    res += write_out_unique_t_tensor_componentes(terms, rank_tensor)
+    # res += write_out_unique_t_tensor_components(terms, rank_tensor)
+    res += write_out_unique_t_tensor_components_arr(terms, rank_tensor)
 
     res += "\n"
 
-    res += write_tensor_contraction(rank_result, rank_tensor)
+    # res += write_tensor_contraction(rank_result, rank_tensor)
+    res += write_tensor_contraction_loops(rank_result, rank_tensor)
+
 
     res += "\n"
 
@@ -173,10 +227,16 @@ def write_cpp_function(rank_tensor, rank_result):
     return res
 
 if __name__ == "__main__":
+    comp = evaluate_component([0,0,1,1], T_Tensor(4))
+    print(comp)
+    # exit(0)
+
     output_path = Path("./output")
     output_path.mkdir(exist_ok=True)
 
     rank_pairs = [
+        [3, 2],
+        [4, 2],
         [4, 3],
         [5, 3],
         [6, 3],
@@ -192,12 +252,14 @@ if __name__ == "__main__":
     ]
 
 
-    with open(output_path / "generic_coulomb_tensor_contraction.hpp", "w" ) as f:
+    with open(output_path / "coulomb_tensor_contraction.cpp", "w" ) as f:
         f.write("""
-#pragma once
 #include "tensor.hpp"
+#include "stonedamping.hpp"
+#include "coulomb_tensor_contraction.hpp"
+#include "coulomb_tensor_utils.hpp"
 
-namespace SCME::Coulomb_Tensors::Generic
+namespace SCME::Coulomb_Tensors
 {
     """)
         for rank_tensor, rank_target in rank_pairs:
@@ -220,17 +282,17 @@ namespace SCME::Coulomb_Tensors
         f.write("}")
 
 
-    with open(output_path / "coulomb_tensor_contraction.cpp", "w" ) as f:
-        f.write("""
-#include "tensor.hpp"
-#include "coulomb_tensor_contraction.hpp"
-#include "generic_coulomb_tensor_contraction.hpp"
+#     with open(output_path / "coulomb_tensor_contraction.cpp", "w" ) as f:
+#         f.write("""
+# #include "tensor.hpp"
+# #include "coulomb_tensor_contraction.hpp"
+# #include "generic_coulomb_tensor_contraction.hpp"
 
-namespace SCME::Coulomb_Tensors
-{
-""")
-        for rank_tensor, rank_target in rank_pairs:
-            f.write(wrapped_implementation(rank_tensor, rank_target))
-            f.write("\n\n")
-        f.write("}")
+# namespace SCME::Coulomb_Tensors
+# {
+# """)
+#         for rank_tensor, rank_target in rank_pairs:
+#             f.write(wrapped_implementation(rank_tensor, rank_target))
+#             f.write("\n\n")
+#         f.write("}")
 

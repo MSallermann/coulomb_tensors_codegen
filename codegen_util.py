@@ -76,6 +76,10 @@ class EinsteinTerm:
         self.n_delta = 0
         self.n_r = 0
 
+    def __repr__(self):
+        res = f"<EinsteinTerm: order={self.order}, prefactor={self.prefactor}, n_delta={self.n_delta}, n_r={self.n_r}, n_permutations = {len(self.permutations)}>"
+        return res
+
 
 def T_Tensor(n: int) -> list[EinsteinTerm]:
     r"""
@@ -194,18 +198,16 @@ def preamble(rank_t, rank_result):
     res = f"""/**
 * @brief Contract the rank {rank_t} Coulomb tensor with a rank {rank_sum} tensor Q.
 *
-* @tparam SW_Func_T
-* @param r position difference vector
-* @param sw_func switching function with signature sw_func(double, int) -> double
+* @param r: position difference vector
+* @param te: decay length of the stone damping function
 * @return Tensor<double> (a rank {rank_result} tensor)
 */
-template <typename SW_Func_T>
     """
 
     items = rank_t * ["3"]
     threes = insert_separator(items, ",")
 
-    res += f"inline {tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const SW_Func_T& sw_func)"
+    res += f"{tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const double te)"
     res += "\n{\n"
 
     res += "    const double R1 = norm(r);\n"
@@ -221,7 +223,7 @@ template <typename SW_Func_T>
         res += f"    const double R{o} = R{o-2} * R2;\n"
 
     for o in range(min_order, max_order + 2, 2):
-        res += f"    const double SW{o} = sw_func(R1, {o});\n"
+        res += f"    const double SW{o} = stonedampingNF(R1, {o}, te);\n"
 
     return res
 
@@ -253,7 +255,10 @@ def wrapped_implementation(rank_t, rank_result):
 
     res = f"{tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const double te)\n"
     res += "{"
-    res += f"    return Generic::contract_Coulomb_{rank_t}_{rank_result}(r, Q, [&](double r, int m)" + "{ return stonedampingNF(r, m, te); });\n"
+    res += (
+        f"    return Generic::contract_Coulomb_{rank_t}_{rank_result}(r, Q, [&](double r, int m)"
+        + "{ return stonedampingNF(r, m, te); });\n"
+    )
     res += "}"
 
     return res
