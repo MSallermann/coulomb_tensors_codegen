@@ -201,6 +201,145 @@ def write_tensor_contraction_loops( rank_result, rank_t, target_symbol = "res", 
 
     return res
 
+def write_tensor_contraction_loops_heaps_algorithm( rank_result, rank_t, target_symbol = "res", input_symbol = "Q" ):
+    res = ""
+
+    alphabet = [chr(97+i) for i in range(rank_t)]
+
+    rank_sum = rank_t - rank_result
+
+    # add the variable we will write the result to
+    res += f"    {tensor_type(rank_result)} {target_symbol}" +"(0.0);\n\n" 
+
+    # Write the head of the tensor loops
+    res += "int count{0};\n"
+
+    for i in range(rank_t):
+        start = 0 if i==0 else alphabet[i-1]
+        a = alphabet[i]
+        res += f"for(int {a} = {start}; {a} < 3; {a}++)\n"
+        res += "{\n"
+
+
+    res += f"const double t_cur = T[count];\n"
+
+    idx_lhs = insert_separator( [f"idx[{i}]" for i in range(rank_result)])
+    idx_rhs = insert_separator( [f"idx[{i}]" for i in range(rank_result, rank_t)])
+
+    res += f"auto cb = [&]( const std::array<int,{rank_t}> & idx )\n"
+    res += "{\n"
+    res += f"    res( { idx_lhs } ) += t_cur * Q({idx_rhs});\n"
+    res += "};\n"
+
+    res += f"std::array<int, {rank_t}> A = {{ {insert_separator(alphabet)} }};\n"
+
+    res += f"Util::generate_permutations<{rank_t}>({rank_t}, A, cb);\n"
+
+    res+= "count++;\n"
+
+    for i in range(rank_t):
+        res += "}\n"
+
+    return res
+
+
+def write_tensor_contraction_loops_permutations_v2( rank_result, rank_t, target_symbol = "res", input_symbol = "Q" ):
+    res = ""
+
+    alphabet = [chr(97+i) for i in range(rank_t)]
+
+    rank_sum = rank_t - rank_result
+
+    # add the variable we will write the result to
+    res += f"    {tensor_type(rank_result)} {target_symbol}" +"(0.0);\n\n" 
+
+    # Write the head of the tensor loops
+    # res += "int count{0};\n"
+
+    for i in range(rank_result):
+        start = 0 if i==0 else alphabet[i-1]
+        a = alphabet[i]
+        res += f"for(int {a} = {start}; {a} < 3; {a}++)\n"
+        res += "{\n"
+
+    res += "\ndouble tmp{0.0};\n\n"
+
+    # res += f"const double mult = Util::multiplicity<{rank_result}>( {{{insert_separator(alphabet[:rank_result])}}} );\n"
+
+    for i in range(rank_result, rank_t):
+        start = 0
+        a = alphabet[i]
+        res += f"for(int {a} = {start}; {a} < 3; {a}++)\n"
+        res += "{\n"
+
+    res += f"const int count = Util::get_position_in_lookup_array<{rank_t}>( {{ {insert_separator(alphabet)} }} );\n"
+    res += f"const double t_cur = T[count];\n"
+
+    # res += f"std::array<int, {rank_sum}> idx_q = {{ {insert_separator(alphabet[rank_result:])} }};\n"
+
+    # idx_rhs = insert_separator( [f"idx_q[{i}]" for i in range(rank_sum)])
+    # res += " do {\n"
+    # res += f"   tmp += mult * t_cur * Q({idx_rhs});\n"
+    res += f"   tmp +=t_cur * Q({ insert_separator(alphabet[rank_result:]) });\n"
+
+    # res += "} while (std::next_permutation(idx_q.begin(), idx_q.end()));\n\n"
+
+    # res+= "count++;\n"
+
+    for i in range(rank_sum):
+        res += "}\n"
+
+
+    res += f"std::array<int, {rank_result}> idx_r = {{ {insert_separator(alphabet[:rank_result])} }};\n"
+    idx_lhs = insert_separator( [f"idx_r[{i}]" for i in range(rank_result)])
+    res += " do {\n"
+    res += f"   res( { idx_lhs } ) = tmp;\n"
+    res += "} while (std::next_permutation(idx_r.begin(), idx_r.end()));\n\n"
+
+
+
+    for i in range(rank_sum,rank_t):
+        res += "}\n"
+
+    return res
+
+
+def write_tensor_contraction_loops_permutations( rank_result, rank_t, target_symbol = "res", input_symbol = "Q" ):
+    res = ""
+
+    alphabet = [chr(97+i) for i in range(rank_t)]
+
+    rank_sum = rank_t - rank_result
+
+    # add the variable we will write the result to
+    res += f"    {tensor_type(rank_result)} {target_symbol}" +"(0.0);\n\n" 
+
+    # Write the head of the tensor loops
+    res += "int count{0};\n"
+
+    for i in range(rank_t):
+        start = 0 if i==0 else alphabet[i-1]
+        a = alphabet[i]
+        res += f"for(int {a} = {start}; {a} < 3; {a}++)\n"
+        res += "{\n"
+
+    res += f"const double t_cur = T[count];\n"
+
+    idx_lhs = insert_separator( [f"idx[{i}]" for i in range(rank_result)])
+    idx_rhs = insert_separator( [f"idx[{i}]" for i in range(rank_result, rank_t)])
+
+    res += f"std::array<int, {rank_t}> idx = {{ {insert_separator(alphabet)} }};\n"
+
+    res += " do {\n"
+    res += f"    res( { idx_lhs } ) += t_cur * Q({idx_rhs});\n"
+    res += "} while (std::next_permutation(idx.begin(), idx.end()));\n"
+
+    res+= "count++;\n"
+
+    for i in range(rank_t):
+        res += "}\n"
+
+    return res
 
 def write_cpp_function(rank_tensor, rank_result):
     res = preamble(rank_tensor, rank_result)
@@ -215,7 +354,12 @@ def write_cpp_function(rank_tensor, rank_result):
     res += "\n"
 
     # res += write_tensor_contraction(rank_result, rank_tensor)
-    res += write_tensor_contraction_loops(rank_result, rank_tensor)
+    # res += write_tensor_contraction_loops(rank_result, rank_tensor)
+    # res += write_tensor_contraction_loops_heaps_algorithm(rank_result, rank_tensor)
+    # res += write_tensor_contraction_loops_permutations(rank_result, rank_tensor)
+    res += write_tensor_contraction_loops_permutations_v2(rank_result, rank_tensor)
+
+
 
 
     res += "\n"
@@ -237,6 +381,8 @@ if __name__ == "__main__":
     rank_pairs = [
         [3, 2],
         [4, 2],
+        [5, 2],
+        [6, 2],
         [4, 3],
         [5, 3],
         [6, 3],
@@ -256,6 +402,7 @@ if __name__ == "__main__":
         f.write("""
 #include "tensor.hpp"
 #include "stonedamping.hpp"
+#include <algorithm>
 #include "coulomb_tensor_contraction.hpp"
 #include "coulomb_tensor_utils.hpp"
 
