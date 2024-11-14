@@ -290,11 +290,7 @@ def write_tensor_contraction_loops_permutations_v2( rank_result, rank_t, target_
         res += "}\n"
 
 
-    res += f"std::array<int, {rank_result}> idx_r = {{ {insert_separator(alphabet[:rank_result])} }};\n"
-    idx_lhs = insert_separator( [f"idx_r[{i}]" for i in range(rank_result)])
-    res += " do {\n"
-    res += f"   res( { idx_lhs } ) = tmp;\n"
-    res += "} while (std::next_permutation(idx_r.begin(), idx_r.end()));\n\n"
+    res += f"    res({insert_separator(alphabet[:rank_result])}) = tmp\n;"
 
 
 
@@ -336,14 +332,28 @@ def write_tensor_contraction_loops_permutations_v3( rank_result, rank_t, target_
     # res += f"const int count = Util::get_position_in_lookup_array<{rank_t}>( {{ {insert_separator(alphabet)} }} );\n"
     res += f"const double t_cur = T[count];\n"
 
-    res += f"std::array<int, {rank_sum}> idx_q = {{ {insert_separator(alphabet[rank_result:])} }};\n"
+    idx_lhs = insert_separator( [f"idx[{i}]" for i in range(rank_result)])
+    idx_rhs = insert_separator( [f"idx[{i}]" for i in range(rank_result, rank_t)])
 
-    idx_rhs = insert_separator( [f"idx_q[{i}]" for i in range(rank_sum)])
-    res += " do {\n"
-    res += f"   tmp += t_cur * Q({idx_rhs});\n"
-    # res += f"   tmp +=t_cur * Q({ insert_separator(alphabet[rank_result:]) });\n"
 
-    res += "} while (std::next_permutation(idx_q.begin(), idx_q.end()));\n\n"
+    res += f"auto cb = [&]( const std::array<int,{rank_t}> & idx )\n"
+    res += "{\n"
+    res += f"    res( { idx_lhs } ) += t_cur * Q({idx_rhs});\n"
+    res += "};\n"
+
+
+    res += f"std::array<int, {rank_t}> cur_idx = {{ {insert_separator(alphabet)} }};\n\n"
+
+    res += f"generate_permutations<{rank_t}, {rank_result}, 3>(cur_idx, cb);\n"
+
+
+
+    # idx_rhs = insert_separator( [f"idx_q[{i}]" for i in range(rank_sum)])
+    # res += " do {\n"
+    # res += f"   tmp += t_cur * Q({idx_rhs});\n"
+    # # res += f"   tmp +=t_cur * Q({ insert_separator(alphabet[rank_result:]) });\n"
+
+    # res += "} while (std::next_permutation(idx_q.begin(), idx_q.end()));\n\n"
 
     res+= "count++;\n"
 
@@ -351,11 +361,11 @@ def write_tensor_contraction_loops_permutations_v3( rank_result, rank_t, target_
         res += "}\n"
 
 
-    res += f"std::array<int, {rank_result}> idx_r = {{ {insert_separator(alphabet[:rank_result])} }};\n"
-    idx_lhs = insert_separator( [f"idx_r[{i}]" for i in range(rank_result)])
-    res += " do {\n"
-    res += f"   res( { idx_lhs } ) = tmp;\n"
-    res += "} while (std::next_permutation(idx_r.begin(), idx_r.end()));\n\n"
+    # res += f"std::array<int, {rank_result}> idx_r = {{ {insert_separator(alphabet[:rank_result])} }};\n"
+    # idx_lhs = insert_separator( [f"idx_r[{i}]" for i in range(rank_result)])
+    # res += " do {\n"
+    # res += f"   res( { idx_lhs } ) = tmp;\n"
+    # res += "} while (std::next_permutation(idx_r.begin(), idx_r.end()));\n\n"
 
 
 
@@ -463,6 +473,7 @@ if __name__ == "__main__":
 #include <algorithm>
 #include "coulomb_tensor_contraction.hpp"
 #include "coulomb_tensor_utils.hpp"
+#include "permute_multiset.hpp"
 
 namespace SCME::Coulomb_Tensors
 {
