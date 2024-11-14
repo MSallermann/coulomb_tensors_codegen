@@ -214,29 +214,90 @@ void generate_permutations(const std::array<int, n>& a, CallbackFunction callbac
 // ============================================================================
 // Main Function: Example Usage
 // ============================================================================
-
 int main()
 {
-    // Define constants for the permutation generation
     constexpr size_t n = 9;  // Total number of elements
-    constexpr size_t m = 5;  // Number of elements to be fixed in the first m positions
+    constexpr size_t m = 5;  // Number of elements to be sorted in non-descending order
     constexpr size_t k = 3;  // Elements range from 0 to k-1 (i.e., 0, 1, 2)
 
     // Example input: elements are within [0, k-1] and can repeat
-    // Note: The array size should match the value of n
-    std::array<int, n> a = {0, 0, 0, 0, 0, 0, 0, 2, 1};  // Adjusted to have 9 elements
+    std::array<int, n> a = {1, 1, 2, 2, 2, 1, 0, 0};
 
-    // Example callback function to print the permutation
-    auto print_permutation = [&](const std::array<int, n>& perm) {
-        for (int num : perm)
-        {
-            std::cout << num << ' ';
-        }
-        std::cout << '\n';
+    // Vectors to store permutations from both methods
+    std::vector<std::array<int, n>> generated_perms;
+    std::vector<std::array<int, n>> brute_force_perms;
+
+    // Callback function to collect generated permutations
+    auto collect_generated_permutation = [&](const std::array<int, n>& perm) {
+        generated_perms.emplace_back(perm);
     };
 
-    // Generate permutations and handle them using the callback
-    generate_permutations<n, m, k>(a, print_permutation);
+    // Generate permutations using the main implementation
+    generate_permutations<n, m, k>(a, collect_generated_permutation);
+
+    // --- Brute Force Approach ---
+    // Step 1: Sort the input array for std::next_permutation
+    std::array<int, n> a_sorted = a;
+    std::sort(a_sorted.begin(), a_sorted.end());
+
+    // Step 2: Generate all unique permutations using std::next_permutation
+    do
+    {
+        // Check if the first m elements are in non-descending order
+        bool valid = true;
+        for (size_t i = 1; i < m; ++i)
+        {
+            if (a_sorted[i - 1] > a_sorted[i])
+            {
+                valid = false;
+                break;
+            }
+        }
+        if (valid)
+        {
+            brute_force_perms.emplace_back(a_sorted);
+        }
+    } while (std::next_permutation(a_sorted.begin(), a_sorted.end()));
+
+    // --- Verification ---
+    // Step 1: Check if both methods generated the same number of permutations
+    if (generated_perms.size() != brute_force_perms.size())
+    {
+        std::cerr << "Test Failed: Different number of permutations generated.\n";
+        std::cerr << "Generated: " << generated_perms.size()
+                  << ", Brute Force: " << brute_force_perms.size() << "\n";
+        return 1;
+    }
+
+    // Step 2: Sort both vectors for comparison
+    auto sort_permutation = [&](const std::array<int, n>& a, const std::array<int, n>& b) -> bool {
+        return a < b;
+    };
+
+    std::sort(generated_perms.begin(), generated_perms.end(), sort_permutation);
+    std::sort(brute_force_perms.begin(), brute_force_perms.end(), sort_permutation);
+
+    // Step 3: Compare each permutation
+    bool test_passed = true;
+    for (size_t i = 0; i < generated_perms.size(); ++i)
+    {
+        if (generated_perms[i] != brute_force_perms[i])
+        {
+            std::cerr << "Test Failed: Mismatch found at permutation index " << i << ".\n";
+            std::cerr << "Generated: ";
+            for (int num : generated_perms[i]) std::cout << num << ' ';
+            std::cerr << "\nBrute Force: ";
+            for (int num : brute_force_perms[i]) std::cout << num << ' ';
+            std::cerr << '\n';
+            test_passed = false;
+            break;
+        }
+    }
+
+    if (test_passed)
+    {
+        std::cout << "Test Passed: All permutations match the brute force approach.\n";
+    }
 
     return 0;
 }
