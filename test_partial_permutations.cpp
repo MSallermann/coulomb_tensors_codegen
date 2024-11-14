@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <iostream>
@@ -221,7 +222,7 @@ int main()
     constexpr size_t k = 3;  // Elements range from 0 to k-1 (i.e., 0, 1, 2)
 
     // Example input: elements are within [0, k-1] and can repeat
-    std::array<int, n> a = {1, 1, 2, 2, 2, 1, 0, 0};
+    std::array<int, n> a = {1, 1, 2, 2, 2, 1, 0, 0, 0};
 
     // Vectors to store permutations from both methods
     std::vector<std::array<int, n>> generated_perms;
@@ -229,11 +230,26 @@ int main()
 
     // Callback function to collect generated permutations
     auto collect_generated_permutation = [&](const std::array<int, n>& perm) {
+        for (auto p : perm)
+        {
+            std::cout << p << " ";
+        }
+        std::cout << "\n";
         generated_perms.emplace_back(perm);
     };
 
-    // Generate permutations using the main implementation
+    // --- Optimized Implementation with Caching ---
+    auto start_opt = std::chrono::high_resolution_clock::now();
+
+    // for(int i=0; i<100; i++)
+    // {
     generate_permutations<n, m, k>(a, collect_generated_permutation);
+    // }
+    auto                          end_opt      = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration_opt = end_opt - start_opt;
+    std::cout << "Optimized Implementation Time: " << duration_opt.count() / 100 << " seconds\n";
+
+    // Generate permutations using the main implementation
 
     // --- Brute Force Approach ---
     // Step 1: Sort the input array for std::next_permutation
