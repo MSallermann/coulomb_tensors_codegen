@@ -136,12 +136,12 @@ def write_out_unique_t_tensor_components( terms : list[EinsteinTerm], rank ):
     return res
 
 
-def write_out_unique_t_tensor_components_arr( terms : list[EinsteinTerm], rank ):
+def write_out_unique_t_tensor_components_arr( terms : list[EinsteinTerm], rank, symbol="T" ):
     res = ""
 
     idx_list = unique_indices(rank)
 
-    res += f"    std::array<double, {len(idx_list)}> T" + "{\n       "
+    res += f"    std::array<double, {len(idx_list)}> {symbol}" + "{\n       "
 
     components = []
     for indices in idx_list:
