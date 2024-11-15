@@ -205,7 +205,6 @@ def preamble(rank_t, rank_result):
     """
 
     items = rank_t * ["3"]
-    threes = insert_separator(items, ",")
 
     res += f"{tensor_type(rank_result)} contract_Coulomb_{rank_t}_{rank_result}(const Tensor<double, 3>& r, const {tensor_type(rank_sum)} & Q, const double te)"
     res += "\n{\n"

@@ -162,7 +162,7 @@ def write_tensor_contraction( rank_result, rank_t, target_symbol = "res", input_
     # add the variable we will write the result to
     res += f"    {tensor_type(rank_result)} {target_symbol}" +"{};\n\n" 
 
-    for indices_result in all_indices(rank_result):
+    for indices_result in unique_indices(rank_result):
         lhs = f"{target_symbol}({insert_separator(indices_result,',')})"
 
         summands = []
@@ -413,22 +413,23 @@ def write_tensor_contraction_loops_permutations( rank_result, rank_t, target_sym
 
 def write_cpp_function(rank_tensor, rank_result):
     res = preamble(rank_tensor, rank_result)
+
     res += precompute_r_component_powers(rank_tensor)
 
     res += "\n"
 
     terms = T_Tensor(rank_tensor)
-    # res += write_out_unique_t_tensor_components(terms, rank_tensor)
-    res += write_out_unique_t_tensor_components_arr(terms, rank_tensor)
+    res += write_out_unique_t_tensor_components(terms, rank_tensor)
+    # res += write_out_unique_t_tensor_components_arr(terms, rank_tensor)
 
     res += "\n"
 
-    # res += write_tensor_contraction(rank_result, rank_tensor)
+    res += write_tensor_contraction(rank_result, rank_tensor)
     # res += write_tensor_contraction_loops(rank_result, rank_tensor)
     # res += write_tensor_contraction_loops_heaps_algorithm(rank_result, rank_tensor)
     # res += write_tensor_contraction_loops_permutations(rank_result, rank_tensor)
     # res += write_tensor_contraction_loops_permutations_v2(rank_result, rank_tensor)
-    res += write_tensor_contraction_loops_permutations_v3(rank_result, rank_tensor)
+    # res += write_tensor_contraction_loops_permutations_v3(rank_result, rank_tensor)
 
     res += "\n"
 
@@ -447,6 +448,10 @@ if __name__ == "__main__":
     output_path.mkdir(exist_ok=True)
 
     rank_pairs = [
+        [2, 1],
+        [3, 1],
+        [4, 1],
+        [5, 1],
         [3, 2],
         [4, 2],
         [5, 2],
